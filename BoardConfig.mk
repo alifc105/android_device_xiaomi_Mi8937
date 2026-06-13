@@ -4,19 +4,35 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Kernel
+# ==========================================
+# 1. Platform & Kernel Base
+# ==========================================
+TARGET_BOARD_PLATFORM := msm8937
+TARGET_KERNEL_VERSION := 4.19
+
+TARGET_KERNEL_ARCH := arm64
+TARGET_KERNEL_HEADER_ARCH := arm64
 TARGET_USES_MITHORIUM_KERNEL := true
 
-# Partitions
+# ==========================================
+# 2. Partitions Setup (TOTAL MIGRATION to EROFS)
+# ==========================================
 SSI_PARTITIONS := product system system_ext
 TREBLE_PARTITIONS := odm vendor
 ALL_PARTITIONS := $(SSI_PARTITIONS) $(TREBLE_PARTITIONS)
 
+# Set all output partition to use EROFS
 $(foreach p, $(call to-upper, $(ALL_PARTITIONS)), \
-    $(eval BOARD_$(p)IMAGE_FILE_SYSTEM_TYPE := ext4) \
+    $(eval BOARD_$(p)IMAGE_FILE_SYSTEM_TYPE := erofs) \
     $(eval TARGET_COPY_OUT_$(p) := $(call to-lower, $(p))))
 
-# Inherit from common mithorium-common
+# Add high compression arg LZ4HC to saving more block RDP size.
+BOARD_EROFS_COMMANDLINE := -b 4096 -C 16384 -z lz4hc,9
+
+# ==========================================
+# 3. Inherit from Common Mithorium
+# ==========================================
+# Calling device common board config & setting the device version for it
 include device/xiaomi/mithorium-common/BoardConfigCommon.mk
 
 DEVICE_PATH := device/xiaomi/Mi8937
@@ -24,7 +40,7 @@ USES_DEVICE_XIAOMI_MI8937 := true
 
 # Asserts
 TARGET_BOARD_INFO_FILE := $(DEVICE_PATH)/board-info.txt
-TARGET_OTA_ASSERT_DEVICE := mi8937,land,santoni,prada,ulysse,ugglite,ugg,rolex,riva,Mi8937,Mi8937_4_19
+TARGET_OTA_ASSERT_DEVICE := mi8937,land,santoni,prada,ulysse,ugglite,ugg,rolex,riva,Mi8937,Mi8937_4_19,Mi8937_Ld
 
 # Camera
 #MI8937_CAM_USE_LATEST_CAMERA_STACK := true
@@ -35,16 +51,16 @@ endif
 # Display
 TARGET_SCREEN_DENSITY := 280
 
-# Filesystem
-TARGET_FS_CONFIG_GEN += $(DEVICE_PATH)/config.fs
+# Fastboot
+TARGET_BOARD_FASTBOOT_INFO_FILE := $(DEVICE_PATH)/fastboot-info.txt
 
 # HIDL
 DEVICE_MANIFEST_FILE += $(DEVICE_PATH)/manifest.xml
 
 # Init
-TARGET_INIT_VENDOR_LIB := //$(DEVICE_PATH):init_xiaomi_mi8937
+$(call soong_config_set,libinit,vendor_init_lib,//$(DEVICE_PATH):init_xiaomi_mi8937)
 
-# Kernel
+# Kernel CMDLINE & Fragment Configurations
 BOARD_KERNEL_CMDLINE += androidboot.boot_devices=soc/7824900.sdhci
 
 ifeq ($(TARGET_KERNEL_VERSION),4.19)
@@ -67,7 +83,7 @@ TARGET_KERNEL_RECOVERY_CONFIG += \
     vendor/xiaomi/msm8937/common.config \
     vendor/xiaomi/msm8937/mi8937.config
 
-# Partitions
+# Partitions Size & Config
 BOARD_USES_METADATA_PARTITION := true
 
 BOARD_BOOTIMAGE_PARTITION_SIZE := 67108864
@@ -76,39 +92,27 @@ BOARD_CACHEIMAGE_FILE_SYSTEM_TYPE := ext4
 BOARD_CACHEIMAGE_PARTITION_SIZE := 268435456
 BOARD_USERDATAIMAGE_PARTITION_SIZE := 10332634112 # 10332650496 - 16384
 
-# Partitions - dynamic
+# Partitions - dynamic (Retrofit Dynamic Partitions)
 BOARD_SUPER_PARTITION_BLOCK_DEVICES := cust system
 BOARD_SUPER_PARTITION_METADATA_DEVICE := system
 BOARD_SUPER_PARTITION_CUST_DEVICE_SIZE := 536870912
 BOARD_SUPER_PARTITION_SYSTEM_DEVICE_SIZE := 3221225472
 BOARD_SUPER_PARTITION_SIZE := $(shell expr $(BOARD_SUPER_PARTITION_CUST_DEVICE_SIZE) + $(BOARD_SUPER_PARTITION_SYSTEM_DEVICE_SIZE) )
 
+# Setting group size to leaving space for metadata partition (preventing status 1 error in TWRP)
 BOARD_SUPER_PARTITION_GROUPS := mi8937_dynpart
-BOARD_MI8937_DYNPART_SIZE := $(shell expr $(BOARD_SUPER_PARTITION_SIZE) - 4194304 )
+BOARD_MI8937_DYNPART_SIZE := $(shell expr $(BOARD_SUPER_PARTITION_SIZE) - 8388608 )
 BOARD_MI8937_DYNPART_PARTITION_LIST := $(ALL_PARTITIONS)
 
-# Partitions - reserved size
-$(foreach p, $(call to-upper, $(SSI_PARTITIONS)), \
-    $(eval BOARD_$(p)IMAGE_EXTFS_INODE_COUNT := -1))
-$(foreach p, $(call to-upper, $(TREBLE_PARTITIONS)), \
-    $(eval BOARD_$(p)IMAGE_EXTFS_INODE_COUNT := 2048))
-
-$(foreach p, $(call to-upper, $(SSI_PARTITIONS)), \
-    $(eval BOARD_$(p)IMAGE_PARTITION_RESERVED_SIZE := 83886080)) # 80 MB
-$(foreach p, $(call to-upper, $(TREBLE_PARTITIONS)), \
-    $(eval BOARD_$(p)IMAGE_PARTITION_RESERVED_SIZE := 41943040)) # 40 MB
-
-ifneq ($(WITH_GMS),true)
-BOARD_PRODUCTIMAGE_PARTITION_RESERVED_SIZE := 838860800 # 800 MB
-endif
-
-# Power
-TARGET_TAP_TO_WAKE_NODE := "/proc/sys/dev/xiaomi_msm8937_touchscreen/enable_dt2w"
+# Partitions - reserved size (value is 0 because EROFS will calculating it dynamicly)
+$(foreach p, $(call to-upper, $(ALL_PARTITIONS)), \
+    $(eval BOARD_$(p)IMAGE_EXTFS_INODE_COUNT := -1) \
+    $(eval BOARD_$(p)IMAGE_PARTITION_RESERVED_SIZE := 0))
 
 # Properties
 TARGET_VENDOR_PROP += $(DEVICE_PATH)/vendor.prop
 
-# Recovery
+# Recovery fstab
 ifeq ($(TARGET_KERNEL_VERSION),4.19)
 TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/rootdir/etc/fstab_4_19.qcom
 else
