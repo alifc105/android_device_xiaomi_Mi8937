@@ -8,8 +8,6 @@
 # 1. Platform & Kernel Base (Wajib di Atas)
 # ==========================================
 TARGET_BOARD_PLATFORM := msm8937
-
-# ⚠️ SESUAIKAN VERSI KERNEL KAMU (4.9 atau 4.19)
 TARGET_KERNEL_VERSION := 4.19
 
 # Spesifikasi Arsitektur Kernel untuk Axion/AOSP Modern
