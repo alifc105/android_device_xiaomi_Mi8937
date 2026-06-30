@@ -108,7 +108,7 @@ BOARD_SUPER_PARTITION_SYSTEM_DEVICE_SIZE := 3285073920
 BOARD_SUPER_PARTITION_SIZE := 3821944832
 
 # Mengaktifkan flag retrofit murni agar updater-script otomatis rebuild tabel virtual saat flash
-PRODUCT_RETROFIT_DYNAMIC_PARTITIONS := true
+BOARD_PRODUCT_RETROFIT_DYNAMIC_PARTITIONS := true
 
 # SETUP GRUP DINAMIS - Di-lock ke nilai maksimal Infinity-X msm8937 yang sukses booting
 BOARD_SUPER_PARTITION_GROUPS := mi8937_dynpart
